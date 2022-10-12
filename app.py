@@ -1,69 +1,15 @@
+from __init__ import *
 import json
 import dateutil.parser
 import babel
 from flask import Flask, render_template, request, abort, jsonify
-from flask_moment import Moment
-from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
+import pytz
 from forms import *
 from config import csrf
-from flask_migrate import Migrate
 import sys
-
-app = Flask(__name__)
-moment = Moment(app)
-app.config.from_object('config')
-
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-
-
-class Venue(db.Model):
-    __tablename__ = 'venue'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(), nullable=False)
-    city = db.Column(db.String(120), nullable=False)
-    state = db.Column(db.String(120), nullable=False)
-    address = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(120), nullable=False)
-    genres = db.Column(db.String(300), nullable=False)
-    image_link = db.Column(db.String(500))
-    website = db.Column(db.String(120), nullable=False)
-    shows = db.relationship('Show', backref='venue', lazy=False)
-
-    def __repr__(self):
-        return f'<Venue: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, address: {self.address}, phone: {self.phone}, image_link: {self.image_link}, genres: {self.genres}, website: {self.website}, shows: {self.shows}>'
-
-
-class Artist(db.Model):
-    __tablename__ = 'artist'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(), nullable=False)
-    city = db.Column(db.String(120), nullable=False)
-    state = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(120), nullable=False)
-    genres = db.Column(db.String(300), nullable=False)
-    website = db.Column(db.String(120))
-    shows = db.relationship('Show', backref='artist', lazy=False)
-
-    def __repr__(self):
-        return f'<Artist: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, shows: {self.shows}>'
-
-
-class Show(db.Model):
-    _tablename__ = 'show'
-
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DateTime, nullable=False)
-    artist_id = db.Column(db.Integer, db.ForeignKey(
-        "artist.id"), nullable=False)
-    venue_id = db.Column(db.Integer, db.ForeignKey("venue.id"), nullable=False)
-
-    def __repr__(self):
-        return f'<Show {self.id}, date: {self.date}, artist_id: {self.artist_id}, venue_id: {self.venue_id}>'
+from models import *
 
 
 def format_datetime(value, format='medium'):
@@ -128,7 +74,7 @@ def venues():
 def search_venues():
     search_term = request.form.get('search_term')
     search = "%{}%".format(search_term.replace(" ", "\ "))
-    data = Venue.query.filter(Venue.name.match(search)).order_by('name').all()
+    data = Venue.query.filter(Venue.name.like(search)).order_by('name').all()
     items = []
     for row in data:
         aux = {
@@ -153,7 +99,7 @@ def show_venue(venue_id):
     upcoming_shows = []
     past_shows = []
     for show in data.shows:
-        if show.date > datetime.now():
+        if show.date > datetime.now(pytz.timezone('Asia/Calcutta')):
             upcoming_shows.append(show)
         else:
             past_shows.append(show)
@@ -200,9 +146,9 @@ def create_venue_submission():
         db.session.close()
 
     if error:
-        abort(500)
         body['success'] = False
         body['msg'] = 'Buhhhh we were an error '
+        abort(500)
     else:
         body['msg'] = 'Wohoo that create was sucessfully'
         body['success'] = True
@@ -226,7 +172,7 @@ def search_artists():
     search_term = request.form.get('search_term')
     search = "%{}%".format(search_term.replace(" ", "\ "))
     data = Artist.query.filter(
-        Artist.name.match(search)).order_by('name').all()
+        Artist.name.like(search)).order_by('name').all()
     items = []
     for row in data:
         aux = {
@@ -250,7 +196,7 @@ def show_artist(artist_id):
     upcoming_shows = []
     past_shows = []
     for show in data.shows:
-        if show.date > datetime.now():
+        if show.date > datetime.now(pytz.timezone('Asia/Calcutta')):
             upcoming_shows.append(show)
         else:
             past_shows.append(show)
@@ -302,9 +248,9 @@ def edit_artist_submission(artist_id):
     finally:
         db.session.close()
     if error:
-        abort(500)
         body['success'] = False
         body['msg'] = 'Buhhhh we were an error '
+        abort(500)
     else:
         body['msg'] = 'Wohoo that create was sucessfully'
         body['success'] = True
@@ -358,8 +304,6 @@ def edit_venue_submission(venue_id):
         db.session.close()
     if error:
         abort(500)
-        body['success'] = False
-        body['msg'] = 'Buhhhh we were an error '
     else:
         body['msg'] = 'Wohoo that create was sucessfully'
         body['success'] = True
@@ -382,6 +326,7 @@ def create_artist_submission():
     error = False
     body = {}
     request_data = request.get_json()
+    print(request_data['image_link'])
     try:
         name = request_data['name']
         city = request_data['city']
@@ -415,7 +360,7 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
     rows = db.session.query(Show, Artist, Venue).join(Artist).join(
-        Venue).filter(Show.date > datetime.now()).order_by('date').all()
+        Venue).filter(Show.date > datetime.now(pytz.timezone('Asia/Calcutta'))).order_by('date').all()
     data = []
     for row in rows:
         item = {
